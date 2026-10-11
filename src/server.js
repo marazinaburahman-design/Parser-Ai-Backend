@@ -1,13 +1,32 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import { connectDB } from './config/db.js';
 import resumeRoutes from './routes/resumeRoutes.js';
 
 const app = express();
 
-app.use(cors());
+// Vercel sits behind a proxy; this lets the rate limiter see real client IPs.
+app.set('trust proxy', 1);
+
+// If FRONTEND_URL is set, only that website may call the API from a browser.
+// If it is not set (local development), every origin is allowed.
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || true,
+  })
+);
 app.use(express.json({ limit: '1mb' }));
+
+// Each IP address can make 20 analysis requests per 15 minutes.
+const analyzeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again in a few minutes.' },
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'resume-parser-backend' });
@@ -24,6 +43,7 @@ app.use('/api', async (req, res, next) => {
   }
 });
 
+app.use('/api/resume/analyze', analyzeLimiter);
 app.use('/api/resume', resumeRoutes);
 
 app.use((req, res) => {
