@@ -1,4 +1,4 @@
-import pdf from 'pdf-parse/lib/pdf-parse.js';
+import { extractText, getDocumentProxy } from 'unpdf';
 import { SKILLS } from '../data/skills.js';
 
 // Other ways people write a skill. 'go' is matched only through its alias,
@@ -60,11 +60,12 @@ export async function extractTextFromPdf(buffer) {
     throw invalidPdfError();
   }
 
-  let data;
   try {
-    data = await pdf(buffer);
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await extractText(pdf, { mergePages: true });
+    return (text || '').replace(/\s+/g, ' ').trim();
   } catch (err) {
-    console.error('pdf-parse failed:', err?.name, err?.message);
+    console.error('pdf read failed:', err?.name, err?.message);
     // Only blame the file when the PDF library says the file is bad.
     if (
       err?.name === 'InvalidPDFException' ||
@@ -75,7 +76,6 @@ export async function extractTextFromPdf(buffer) {
     // Anything else is a server problem, not the user's file.
     throw err;
   }
-  return (data.text || '').replace(/\s+/g, ' ').trim();
 }
 
 function escapeRegExp(value) {
