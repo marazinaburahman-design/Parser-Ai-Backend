@@ -63,8 +63,17 @@ export async function extractTextFromPdf(buffer) {
   let data;
   try {
     data = await pdf(buffer);
-  } catch {
-    throw invalidPdfError();
+  } catch (err) {
+    console.error('pdf-parse failed:', err?.name, err?.message);
+    // Only blame the file when the PDF library says the file is bad.
+    if (
+      err?.name === 'InvalidPDFException' ||
+      /invalid pdf/i.test(err?.message || '')
+    ) {
+      throw invalidPdfError();
+    }
+    // Anything else is a server problem, not the user's file.
+    throw err;
   }
   return (data.text || '').replace(/\s+/g, ' ').trim();
 }
